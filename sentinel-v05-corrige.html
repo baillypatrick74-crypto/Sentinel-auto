@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>SENTINEL AUTO V0.5</title>
+<style>
+:root{color-scheme:dark;--bg:#08111f;--panel:#142238;--line:#2b405e;--muted:#a8b8ce;--green:#36d6a0;--amber:#ffbd4a;--red:#ff6676}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#f1f6ff;font:15px system-ui,Arial,sans-serif}
+header{padding:18px 16px;background:#101d31;border-bottom:1px solid var(--line)}
+.logo{font-size:21px;font-weight:900;letter-spacing:1.5px}.sub{font-size:12px;color:var(--muted);margin-top:3px}
+main{max-width:760px;margin:auto;padding:14px;display:grid;gap:13px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:14px}
+h2{font-size:16px;margin:0 0 10px}
+.stage{position:relative;background:#02060b;border-radius:12px;overflow:hidden;min-height:230px;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center}
+video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+video{display:none}canvas{pointer-events:none}
+.placeholder{text-align:center;color:var(--muted);padding:20px;max-width:300px}
+button{border:1px solid #456080;border-radius:10px;background:#203550;color:white;font-weight:700;padding:12px 14px;cursor:pointer}
+button.primary{background:#176d59;border-color:#299b7c}button.stop{background:#6b2634;border-color:#9c4051}
+button:disabled{opacity:.45}
+.controls{display:flex;gap:9px;flex-wrap:wrap;margin-top:11px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));gap:8px}
+.stat{background:#0b1728;border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center}
+.stat small{display:block;color:var(--muted);font-size:11px}.stat b{font-size:22px}
+.message{padding:12px;border-radius:10px;background:#102d29;border-left:4px solid var(--green);line-height:1.4}
+.message.warn{background:#352b19;border-color:var(--amber)}.message.bad{background:#351c27;border-color:var(--red)}
+.note{font-size:12px;color:var(--muted);line-height:1.5}
+#events{margin:0;padding-left:20px;max-height:150px;overflow:auto;font-size:13px}
+#events li{padding:4px 0}
+footer{max-width:760px;margin:auto;padding:0 16px 24px;color:var(--muted);font-size:12px;line-height:1.5}
+</style>
+</head>
+<body>
+<header><div class="logo">◈ SENTINEL AUTO</div><div class="sub">Prototype V0.5 · Alertes vocales françaises</div></header>
+<main>
+<section class="card">
+<h2>Caméra arrière du téléphone</h2>
+<div class="stage">
+ <video id="video" autoplay muted playsinline></video>
+ <canvas id="overlay"></canvas>
+ <div class="placeholder" id="placeholder"><div style="font-size:42px">📷</div><b>Caméra inactive</b><p class="note">Appuyez sur « Démarrer la caméra » et autorisez Chrome à utiliser la caméra.</p></div>
+</div>
+<div class="controls">
+ <button id="start" class="primary">Démarrer la caméra</button>
+ <button id="stop" class="stop" disabled>Arrêter</button>
+</div>
+<p class="note">Important : sur Android, un fichier ouvert depuis Téléchargements peut être affiché comme content:// et ne pas avoir le droit d’utiliser la caméra. Pour la caméra, il faudra ouvrir cette application depuis une adresse HTTPS.</p>
+ <p class="note" id="modelStatus">Moteur IA : en attente. Une connexion Internet est nécessaire pour charger le modèle de reconnaissance.</p>
+</section>
+<section class="card">
+<h2>Reconnaissance en direct</h2>
+<div class="stats">
+ <div class="stat"><small>Voitures / camions</small><b id="vehicles">0</b></div>
+ <div class="stat"><small>Piétons</small><b id="people">0</b></div>
+ <div class="stat"><small>Vélos</small><b id="bikes">0</b></div>
+ <div class="stat"><small>Panneaux STOP</small><b id="stops">0</b></div>
+ <div class="stat"><small>Feux tricolores</small><b id="lights">0</b></div>
+</div>
+<div id="alert" class="message" style="margin-top:11px"><b id="alertTitle">En attente</b><div id="alertText" class="note">Aucune analyse en cours.</div></div>
+<div class="controls" style="align-items:center">
+  <label style="display:flex;gap:8px;align-items:center;font-size:13px">
+   <input id="soundEnabled" type="checkbox" checked style="width:18px;height:18px;accent-color:#36d6a0">
+   Alerte sonore
+  </label>
+  <button id="testSound" type="button">Tester le son</button>
+ </div>
+  <div class="controls" style="align-items:center;margin-top:10px">
+   <label style="display:flex;gap:8px;align-items:center;font-size:13px">
+    <input id="voiceEnabled" type="checkbox" checked style="width:18px;height:18px;accent-color:#36d6a0">
+    Annonces vocales en français
+   </label>
+   <label style="display:flex;gap:8px;align-items:center;font-size:13px">
+    Volume de la voix
+    <input id="voiceVolume" type="range" min="0" max="1" step="0.1" value="0.8" style="width:110px">
+   </label>
+   <button id="testVoice" type="button">Tester la voix</button>
+  </div>
+  <p class="note">La voix annonce une nouvelle catégorie détectée et évite de répéter continuellement la même annonce. La reconnaissance peut se tromper ou manquer des objets.</p>
+ <p class="note">Les cadres indiquent uniquement les objets reconnus par le modèle. Ils ne représentent pas une mesure de distance ni un risque de collision.</p>
+</section>
+<section class="card">
+<h2>Événements</h2>
+<ul id="events"><li>Prototype V0.5 prêt : alertes vocales françaises et réglage du volume.</li></ul>
+<button id="clear" style="margin-top:9px">Effacer l'historique</button>
+</section>
+<section class="card">
+<h2>Limites de cette version</h2>
+<p class="note">Le modèle COCO-SSD reconnaît des catégories d'objets courantes, dont « stop sign » et « traffic light ». La détection ne lit pas le texte des panneaux et ne détermine pas la couleur du feu ni la priorité. Il peut manquer des objets ou se tromper, notamment la nuit, sous la pluie, en cas de mouvement ou d'image partiellement masquée. La catégorie « vélo » ne garantit pas l'identification d'un cycliste comme personne sur son vélo. Les alertes sonores signalent uniquement un changement de détection. Cette démonstration n'est pas un dispositif de sécurité automobile.</p>
+</section>
+</main>
+<footer><b>Sécurité :</b> faites les essais uniquement à l'arrêt, téléphone fixé et sans manipuler l'appareil en conduisant. Ne fixez pas le téléphone sur le pare-brise pour une utilisation routière. Ce prototype ne doit pas servir à éviter une collision ni remplacer l'attention du conducteur.</footer>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const video=$('video'),canvas=$('overlay'),ctx=canvas.getContext('2d');
+let stream=null,model=null,running=false,busy=false,lastCounts='',loopTimer=null,lastAlertAt=0;
+const spokenClasses=new Set();
+const lastSpokenAt={};
+const spokenLabels={
+ 'car':'Attention, voiture détectée',
+ 'truck':'Attention, camion détecté',
+ 'bus':'Attention, bus détecté',
+ 'motorcycle':'Attention, moto détectée',
+ 'person':'Attention, piéton détecté',
+ 'bicycle':'Attention, vélo détecté',
+ 'stop sign':'Panneau STOP détecté',
+ 'traffic light':'Feu tricolore détecté'
+};
+const HISTORY_KEY='sentinel_auto_events_v04';
+const vehicleClasses=['car','truck','bus','motorcycle'];
+const frenchLabels={'car':'voiture','truck':'camion','bus':'bus','motorcycle':'moto','person':'personne','bicycle':'vélo','stop sign':'panneau STOP','traffic light':'feu tricolore'};
+
+function status(title,msg,kind=''){
+ $('alert').className='message '+kind;
+ $('alertTitle').textContent=title;
+ $('alertText').textContent=msg;
+}
+function loadHistory(){
+ try{
+  const saved=JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]');
+  $('events').innerHTML='';
+  saved.slice(0,40).forEach(item=>addEventLine(item,false));
+ }catch(e){$('events').innerHTML='';}
+}
+function saveHistory(){
+ try{
+  const items=[...$('events').querySelectorAll('li')].map(li=>li.textContent);
+  localStorage.setItem(HISTORY_KEY,JSON.stringify(items.slice(0,40)));
+ }catch(e){status('Historique non mémorisé','Le navigateur ne permet pas de conserver les événements.','warn');}
+}
+function addEventLine(message,save=true){
+ const li=document.createElement('li');
+ li.textContent=message;
+ $('events').prepend(li);
+ while($('events').children.length>40)$('events').lastElementChild.remove();
+ if(save)saveHistory();
+}
+function log(s){addEventLine(new Date().toLocaleTimeString('fr-FR')+' — '+s);}
+function resizeCanvas(){
+ if(!video.videoWidth)return;
+ canvas.width=video.videoWidth;
+ canvas.height=video.videoHeight;
+}
+async function loadModel(){
+ $('modelStatus').textContent='Chargement du moteur IA…';
+ try{
+  if(!window.tf||!window.cocoSsd)throw new Error('Bibliothèques IA indisponibles');
+  await tf.ready();
+  model=await cocoSsd.load({base:'lite_mobilenet_v2'});
+  $('modelStatus').textContent='Moteur IA chargé. Reconnaissance prête.';
+  log('Moteur de reconnaissance chargé.');
+ }catch(e){
+  $('modelStatus').textContent='Impossible de charger le modèle IA : '+e.message+'. Vérifiez Internet et rechargez la page.';
+  log('Erreur de chargement du modèle.');
+  throw e;
+ }
+}
+async function start(){
+ if(running)return;
+ if(!navigator.mediaDevices?.getUserMedia){
+  status('Caméra indisponible','Ouvrez cette page depuis une adresse HTTPS sécurisée.','warn');
+  return;
+ }
+ try{
+  if(!model)await loadModel();
+  stream=await navigator.mediaDevices.getUserMedia({
+   audio:false,
+   video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}
+  });
+  video.srcObject=stream;
+  await video.play();
+  $('placeholder').style.display='none';
+  video.style.display='block';
+  $('start').disabled=true;
+  $('stop').disabled=false;
+  running=true;
+  resizeCanvas();
+  status('Caméra active','Analyse expérimentale en cours. Faites les essais à l’arrêt.');
+  log('Caméra arrière activée.');
+  scheduleDetection(100);
+ }catch(e){
+  const detail = e.name==='NotAllowedError'
+   ? 'Accès refusé. Vérifiez l’autorisation Caméra de Chrome dans les paramètres Android.'
+   : e.name==='NotFoundError'
+   ? 'Aucune caméra disponible.'
+   : e.name==='NotReadableError'
+   ? 'La caméra est occupée par une autre application. Fermez les applications qui l’utilisent puis réessayez.'
+   : e.name==='SecurityError'||e.name==='TypeError'
+   ? 'Cette page est probablement ouverte depuis les téléchargements Android (content://). Chrome exige une page HTTPS pour autoriser la caméra.'
+   : (e.message||e.name);
+  stop(false);
+  status('Impossible de démarrer la caméra',detail,'warn');
+  log('Démarrage impossible : '+e.name+' — '+detail);
+ }
+}
+function scheduleDetection(delay=250){
+ clearTimeout(loopTimer);
+ if(running)loopTimer=setTimeout(detectFrame,delay);
+}
+async function detectFrame(){
+ if(!running||busy)return;
+ busy=true;
+ try{
+  if(video.readyState>=2&&model){
+   if(canvas.width!==video.videoWidth||canvas.height!==video.videoHeight)resizeCanvas();
+   const predictions=await model.detect(video);
+   ctx.clearRect(0,0,canvas.width,canvas.height);
+   let vehicles=0,people=0,bikes=0,stopSigns=0,lights=0;
+   const found=[];
+   for(const p of predictions){
+    if(p.score<0.55)continue;
+    const c=vehicleClasses.includes(p.class)?'#ffbd4a':
+      p.class==='person'?'#36d6a0':
+      p.class==='bicycle'?'#69a9ff':
+      p.class==='stop sign'?'#ff6676':
+      p.class==='traffic light'?'#d58bff':null;
+    if(!c)continue;
+    if(vehicleClasses.includes(p.class))vehicles++;
+    if(p.class==='person')people++;
+    if(p.class==='bicycle')bikes++;
+    if(p.class==='stop sign')stopSigns++;
+    if(p.class==='traffic light')lights++;
+    found.push(p.class);
+    const [x,y,w,h]=p.bbox;
+    ctx.strokeStyle=c;
+    ctx.lineWidth=Math.max(3,canvas.width/320);
+    ctx.strokeRect(x,y,w,h);
+    const label=(frenchLabels[p.class]||p.class)+' '+Math.round(p.score*100)+'%';
+    ctx.font='bold '+Math.max(14,canvas.width/45)+'px system-ui';
+    const tw=ctx.measureText(label).width;
+    const labelY=Math.max(0,y-Math.max(24,canvas.width/28));
+    ctx.fillStyle=c;
+    ctx.fillRect(x,labelY,tw+12,Math.max(24,canvas.width/28));
+    ctx.fillStyle='#07111e';
+    ctx.fillText(label,x+6,labelY+Math.max(17,canvas.width/45));
+   }
+   $('vehicles').textContent=vehicles;
+   $('people').textContent=people;
+   $('bikes').textContent=bikes;
+   $('stops').textContent=stopSigns;
+   $('lights').textContent=lights;
+   const signature=[vehicles,people,bikes,stopSigns,lights].join('/');
+   if(signature!==lastCounts&&signature!=='0/0/0/0/0'){
+    log('Détections : véhicules '+vehicles+', personnes '+people+', vélos '+bikes+', panneaux STOP '+stopSigns+', feux tricolores '+lights+'.');
+    lastCounts=signature;
+    if($('soundEnabled').checked)playAlert();
+   }
+   if(vehicles+people+bikes+stopSigns+lights>0)
+    status('Objets reconnus','Détection visuelle expérimentale. Aucune distance ni priorité routière n’est calculée.','warn');
+   else{
+    status('Analyse en cours','Aucun objet suivi reconnu dans cette image.');
+    lastCounts='';
+   }
+  }
+ }catch(e){
+  status('Erreur d’analyse',e.message,'warn');
+  log('Erreur d’analyse : '+e.message);
+ }finally{
+  busy=false;
+  scheduleDetection(300);
+ }
+}
+function playAlert(){
+ const now=Date.now();
+ if(now-lastAlertAt<1800)return;
+ lastAlertAt=now;
+ try{
+  const AudioCtx=window.AudioContext||window.webkitAudioContext;
+  if(!AudioCtx)return;
+  const audio=new AudioCtx();
+  const osc=audio.createOscillator();
+  const gain=audio.createGain();
+  osc.type='sine';
+  osc.frequency.value=880;
+  gain.gain.setValueAtTime(0.0001,audio.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.12,audio.currentTime+0.025);
+  gain.gain.exponentialRampToValueAtTime(0.0001,audio.currentTime+0.22);
+  osc.connect(gain);gain.connect(audio.destination);
+  osc.start();osc.stop(audio.currentTime+0.23);
+  osc.onended=()=>audio.close();
+ }catch(e){}
+}
+function getFrenchVoice(){
+ const voices=window.speechSynthesis?.getVoices?.()||[];
+ return voices.find(v=>/^fr(-|_)/i.test(v.lang)) ||
+        voices.find(v=>/french|français/i.test(v.name)) || null;
+}
+function speakText(text){
+ if(!('speechSynthesis' in window)){
+  status('Voix indisponible','La synthèse vocale n’est pas disponible dans ce navigateur.','warn');
+  return false;
+ }
+ try{
+  const synth=window.speechSynthesis;
+  synth.cancel();
+  const utterance=new SpeechSynthesisUtterance(text);
+  utterance.lang='fr-FR';
+  utterance.rate=0.95;
+  utterance.pitch=1;
+  utterance.volume=Number($('voiceVolume').value);
+  const voice=getFrenchVoice();
+  if(voice)utterance.voice=voice;
+  utterance.onerror=(event)=>{
+   status('Erreur de voix','Le navigateur n’a pas pu lire l’annonce : '+(event.error||'erreur inconnue'),'warn');
+  };
+  synth.speak(utterance);
+  return true;
+ }catch(e){
+  status('Erreur de voix',e.message||'Impossible de démarrer la synthèse vocale.','warn');
+  return false;
+ }
+}
+function speakDetections(classes){
+ if(!$('voiceEnabled').checked)return;
+ const now=Date.now();
+ const unique=[...new Set(classes)];
+ const newlyDetected=unique.filter(c=>!spokenClasses.has(c) && spokenLabels[c] && now-(lastSpokenAt[c]||0)>7000);
+ for(const c of [...spokenClasses])if(!unique.includes(c))spokenClasses.delete(c);
+ for(const c of unique)spokenClasses.add(c);
+ if(!newlyDetected.length)return;
+ const text=newlyDetected.map(c=>spokenLabels[c]).join('. ');
+ if(speakText(text))newlyDetected.forEach(c=>lastSpokenAt[c]=now);
+}
+function testVoice(){
+ if(!('speechSynthesis' in window)){
+  status('Voix indisponible','La synthèse vocale n’est pas disponible dans ce navigateur.','warn');
+  return;
+ }
+ // Some browsers populate the voice list asynchronously; retry briefly if it is empty.
+ const voices=window.speechSynthesis.getVoices();
+ if(!voices.length){
+  window.speechSynthesis.onvoiceschanged=()=>{
+   window.speechSynthesis.onvoiceschanged=null;
+   speakText('Bonjour. SENTINEL AUTO. Test des annonces vocales.');
+  };
+  window.speechSynthesis.getVoices();
+  setTimeout(()=>{
+   if(window.speechSynthesis.speaking || window.speechSynthesis.pending)return;
+   speakText('Bonjour. SENTINEL AUTO. Test des annonces vocales.');
+  },700);
+  return;
+ }
+ speakText('Bonjour. SENTINEL AUTO. Test des annonces vocales.');
+}
+function stop(writeLog=true){
+ running=false;
+ clearTimeout(loopTimer);
+ if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
+ video.pause();
+ video.srcObject=null;
+ video.style.display='none';
+ $('placeholder').style.display='block';
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+ $('start').disabled=false;
+ $('stop').disabled=true;
+ $('vehicles').textContent='0';
+ $('people').textContent='0';
+ $('bikes').textContent='0';
+ $('stops').textContent='0';
+ $('lights').textContent='0';
+ lastCounts='';
+ status('Caméra arrêtée','Aucune analyse en cours.');
+ if(writeLog)log('Caméra arrêtée.');
+}
+$('start').addEventListener('click',start);
+$('stop').addEventListener('click',()=>stop());
+$('clear').addEventListener('click',()=>{
+ $('events').innerHTML='';
+ try{localStorage.removeItem(HISTORY_KEY);}catch(e){}
+ log('Historique effacé.');
+});
+$('testSound').addEventListener('click',playAlert);\n$('testVoice').addEventListener('click',testVoice);
+document.addEventListener('visibilitychange',()=>{
+ if(document.hidden&&running)stop();
+});
+window.addEventListener('pagehide',()=>stop(false));
+loadHistory();
+</script>
+</body></html>
