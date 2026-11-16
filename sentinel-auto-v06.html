@@ -128,7 +128,7 @@ function addEventLine(message,save=true){
  while($('events').children.length>40)$('events').lastElementChild.remove();
  if(save)saveHistory();
 }
-function log(s){addEventLine(new Date().toLocaleTimeString('fr-FR')+' — '+s);}
+function log(s){addEventLine(new Date().toLocaleString('fr-FR')+' - '+s);}
 function resizeCanvas(){
  if(!video.videoWidth)return;
  canvas.width=video.videoWidth;
