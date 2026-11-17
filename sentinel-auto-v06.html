@@ -75,6 +75,13 @@ footer{max-width:760px;margin:auto;padding:0 16px 24px;color:var(--muted);font-s
     <input id="voiceVolume" type="range" min="0" max="1" step="0.1" value="0.8" style="width:110px">
    </label>
    <button id="testVoice" type="button">Tester la voix</button>
+<div class="controls">
+  <label><input type="checkbox" id="announceVehicles" checked> Voitures et camions</label>
+  <label><input type="checkbox" id="announcePeople" checked> Piétons</label>
+  <label><input type="checkbox" id="announceBikes" checked> Vélos et motos</label>
+  <label><input type="checkbox" id="announceStops" checked> Panneaux STOP</label>
+  <label><input type="checkbox" id="announceLights" checked> Feux tricolores</label>
+</div>
   </div>
   <p class="note">Les annonces vocales signalent les nouvelles catégories détectées. Elles peuvent être inexactes et ne constituent pas une alerte de sécurité.</p>
  <p class="note">Les cadres indiquent uniquement les objets reconnus par le modèle. Ils ne représentent pas une mesure de distance ni un risque de collision.</p>
