@@ -304,7 +304,15 @@ function testVoice(){
 function announceDetections(classes){
  if(!$('voiceEnabled').checked||!classes.length)return;
  const now=Date.now();if(now-lastSpeechAt<2500)return;
- const unique=[...new Set(classes)];
+ const enabledClasses=classes.filter(c=>{
+if(['car','truck','bus'].includes(c))return $('announceVehicles').checked;
+if(c==='person')return $('announcePeople').checked;
+if(['bicycle','motorcycle'].includes(c))return $('announceBikes').checked;
+if(c==='stop sign')return $('announceStops').checked;
+if(c==='traffic light')return $('announceLights').checked;
+return false;
+});
+const unique=[...new Set(enabledClasses)];
  const newClasses=unique.filter(c=>speechLabels[c]&&!spokenClasses.has(c));
  for(const c of [...spokenClasses])if(!unique.includes(c))spokenClasses.delete(c);
  unique.forEach(c=>spokenClasses.add(c));
