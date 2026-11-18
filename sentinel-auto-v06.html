@@ -282,6 +282,10 @@ function playAlert(){
  }catch(e){}
 }
 function speakFrench(message){
+if (window.AndroidVoice && typeof window.AndroidVoice.speak === 'function') {
+    window.AndroidVoice.speak(message);
+    return true;
+}
  if(!('speechSynthesis' in window)||!('SpeechSynthesisUtterance' in window)){
   status('Voix indisponible','La synthèse vocale n’est pas prise en charge par ce navigateur.','warn');return false;
  }
@@ -297,9 +301,11 @@ function speakFrench(message){
  }catch(e){status('Lecture vocale impossible',e.message||'Erreur de synthèse vocale.','warn');return false;}
 }
 function testVoice(){
- if(!('speechSynthesis' in window)){status('Voix indisponible','La synthèse vocale n’est pas disponible.','warn');return;}
- window.speechSynthesis.cancel();
- speakFrench('Bonjour. SENTINEL AUTO. Test des annonces vocales.');
+  if(window.AndroidVoice && typeof window.AndroidVoice.speak === 'function'){
+    window.AndroidVoice.speak('Bonjour. SENTINEL AUTO. Test des annonces vocales.');
+  } else {
+    status('Voix Android indisponible','La liaison avec Android ne fonctionne pas.');
+  }
 }
 function announceDetections(classes){
  if(!$('voiceEnabled').checked||!classes.length)return;
